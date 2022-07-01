@@ -7,15 +7,12 @@ use Klevu\FrontendJs\Service\IsEnabledDeterminer;
 use Klevu\FrontendJs\Service\JsIncludesSorter;
 use Klevu\FrontendJs\Traits\CurrentStoreIdTrait;
 use Magento\Framework\App\ObjectManager;
-use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\View\Element\Template;
 use Magento\Framework\View\Element\Template\Context;
 use Magento\Store\Model\ScopeInterface;
 
 class JsIncludes extends Template
 {
-    const URL_PLACEHOLDER_REGEX_SCOPE_CONFIG = '#(\{\{\s*(?<configPath>[a-zA-Z0-9_]+/[a-zA-Z0-9_]+/[a-zA-Z0-9_]+)\s*\}\})#';
-
     use CurrentStoreIdTrait;
 
     /**
@@ -80,14 +77,12 @@ class JsIncludes extends Template
 
             $providedJsIncludesFiltered = $this->filterJsIncludes($providedJsIncludes);
 
-            $this->jsIncludesUrls = array_filter(array_unique(array_map(function ($providedJsInclude) {
+            $this->jsIncludesUrls = array_filter(array_unique(array_map(static function ($providedJsInclude) {
                 if (!isset($providedJsInclude['url']) || !is_string($providedJsInclude['url'])) {
                     return null;
                 }
 
-                return $this->replaceUrlPlaceholders(
-                    trim($providedJsInclude['url'])
-                );
+                return trim($providedJsInclude['url']);
             }, $this->jsIncludesSorter->execute($providedJsIncludesFiltered))));
         }
 
@@ -148,43 +143,6 @@ class JsIncludes extends Template
 
             return $return;
         });
-    }
-
-    /**
-     * @param string $url
-     * @param string $regexScopeConfig
-     * @return string
-     */
-    public function replaceUrlPlaceholders($url, $regexScopeConfig = self::URL_PLACEHOLDER_REGEX_SCOPE_CONFIG)
-    {
-        $configPathMatches = [];
-        preg_match_all($regexScopeConfig, $url, $configPathMatches);
-        if (empty($configPathMatches[0]) || empty($configPathMatches['configPath'])) {
-            return $url;
-        }
-
-        try {
-            $store = $this->_storeManager->getStore();
-            $storeId = (int)$store->getId();
-        } catch (NoSuchEntityException $e) {
-            $this->_logger->error($e->getMessage());
-            $storeId = null;
-        }
-
-        $configPathReplace = [];
-        foreach ($configPathMatches[0] as $replaceKey => $replaceString) {
-            $configPathReplace[$replaceString] = (string)$this->_scopeConfig->getValue(
-                $configPathMatches['configPath'][$replaceKey],
-                ScopeInterface::SCOPE_STORES,
-                $storeId
-            );
-        }
-
-        return str_replace(
-            array_keys($configPathReplace),
-            array_values($configPathReplace),
-            $url
-        );
     }
 
     /**
